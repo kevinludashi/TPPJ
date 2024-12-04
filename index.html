@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -47,6 +48,36 @@
     border-radius: 5px;
     width: 100%;
   }
+  /* 图片列表样式 */
+  .image-list {
+    margin-top: 20px;
+    list-style-type: none;
+    padding: 0;
+  }
+  .image-list li {
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    cursor: move; /* 鼠标指针变化 */
+  }
+  .image-list img {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+  }
+  .remove-btn {
+    background-color: red;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    padding: 5px 10px;
+  }
   /* 响应式设计 */
   @media (max-width: 768px) {
     body {
@@ -57,55 +88,109 @@
     }
   }
 </style>
+
+<!-- 引入 SortableJS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
 </head>
 <body>
-	<h1 style="font-size: 24px;text-align: center;">图片拼接工具 3.0</h1>
+	<h1 style="font-size: 24px;text-align: center;">图片拼接工具 5.0</h1>
 	<h2 style="font-size: 15px;text-align: center;">下载完成图片按钮在最下面</h2>
 	<h3 style="font-size: 12px;color: red;text-align: center;">当无法批量选择或者出现bug时请尝试使用其他浏览器 <br>（例如 Edge或Google Chrome浏览器）</h3>
 <div class="container">
   <!-- 文件输入框 -->
   <input type="file" id="fileInput" multiple accept="image/*">
   <!-- 选择拼接方向的下拉框 -->
-  <select id="direction" onchange="uploadImages()">
+  <select id="direction">
     <option value="vertical">竖向拼接</option>
     <option value="horizontal">横向拼接</option>
   </select>
   <!-- 图片间距输入框 -->
   <input type="number" id="spacingInput" placeholder="输入图片间距(px)" min="0" value="0">
+  
   <!-- 上传并拼接图片的按钮 -->
-  <button onclick="uploadImages()">一键拼接图片</button>
-  <!-- 显示拼接结果的canvas -->
-  <canvas id="canvas"></canvas>
+  <button onclick="stitchImages()">一键拼接图片</button>
   <!-- 下载拼接后图片的按钮 -->
   <button id="downloadBtn" style="display:none;">下载拼接后的图片</button>
+  <!-- 显示拼接结果的canvas -->
+  <canvas id="canvas"></canvas>
+  
+  <!-- 图片列表 -->
+  <ul id="imageList" class="image-list"></ul>
 </div>
 
 <script>
-  let images = [];
+  let images = [];  // 存储已选择的图片
   let canvas = document.getElementById('canvas');
   let ctx = canvas.getContext('2d');
   let downloadBtn = document.getElementById('downloadBtn');
+  let imageList = document.getElementById('imageList');
 
+  // 上传图片并显示列表
   function uploadImages() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    images = [];
     let files = document.getElementById('fileInput').files;
-    let direction = document.getElementById('direction').value;
-    let spacing = parseInt(document.getElementById('spacingInput').value) || 0;
 
+    // 读取文件
     for (let i = 0; i < files.length; i++) {
       let reader = new FileReader();
       reader.onload = (e) => {
+        // 将图片保存在数组中
         images.push(e.target.result);
-        if (images.length === files.length) {
-          stitchImages(direction, spacing);
-        }
+        updateImageList();  // 更新图片列表显示
       };
       reader.readAsDataURL(files[i]);
     }
   }
 
-  function stitchImages(direction, spacing) {
+  // 更新图片列表
+  function updateImageList() {
+    imageList.innerHTML = '';  // 清空图片列表
+
+    // 为每张图片创建列表项
+    images.forEach((img, index) => {
+      let li = document.createElement('li');
+      let imgElement = document.createElement('img');
+      imgElement.src = img;
+      
+      // 添加删除按钮
+      let removeBtn = document.createElement('button');
+      removeBtn.textContent = '删除';
+      removeBtn.className = 'remove-btn';
+      removeBtn.onclick = () => removeImage(index);
+
+      li.appendChild(imgElement);
+      li.appendChild(removeBtn);
+      li.dataset.index = index;  // 存储图片原始顺序
+      imageList.appendChild(li);
+    });
+
+    // 初始化 SortableJS，实现图片拖拽排序
+    new Sortable(imageList, {
+      onEnd(evt) {
+        // 排序结束后更新图片数组顺序
+        let newImages = [];
+        for (let i = 0; i < imageList.children.length; i++) {
+          newImages.push(images[evt.from.children[i].dataset.index]);
+        }
+        images = newImages;  // 更新图片顺序
+        updateImageList();   // 更新图片列表显示
+      }
+    });
+  }
+
+  // 删除指定图片
+  function removeImage(index) {
+    images.splice(index, 1);
+    updateImageList();
+  }
+
+  // 拼接图片
+  function stitchImages() {
+    let direction = document.getElementById('direction').value;
+    let spacing = parseInt(document.getElementById('spacingInput').value) || 0;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);  // 清空画布
+
     let totalWidth = 0;
     let totalHeight = 0;
     let maxWidth = 0;
@@ -123,6 +208,7 @@
           maxWidth = Math.max(maxWidth, tempImg.width);
         }
 
+        // 拼接后图片的总宽高
         if (index === images.length - 1) {
           canvas.width = direction === 'horizontal' ? totalWidth - spacing : maxWidth;
           canvas.height = direction === 'horizontal' ? maxHeight : totalHeight - spacing;
@@ -132,6 +218,7 @@
     });
   }
 
+  // 绘制拼接后的图片
   function drawImages(direction, spacing) {
     let x = 0;
     let y = 0;
@@ -140,27 +227,30 @@
       let tempImg = new Image();
       tempImg.src = img;
       tempImg.onload = () => {
-                if (direction === 'horizontal') {
-                  ctx.drawImage(tempImg, x, (canvas.height - tempImg.height) / 2);
-                  x += tempImg.width + spacing;
-                } else {
-                  ctx.drawImage(tempImg, (canvas.width - tempImg.width) / 2, y);
-                  y += tempImg.height + spacing;
-                }
+        if (direction === 'horizontal') {
+          ctx.drawImage(tempImg, x, (canvas.height - tempImg.height) / 2);
+          x += tempImg.width + spacing;
+        } else {
+          ctx.drawImage(tempImg, (canvas.width - tempImg.width) / 2, y);
+          y += tempImg.height + spacing;
+        }
         
-                if (images.indexOf(img) === images.length - 1) {
-                  downloadBtn.style.display = 'block';
-                  downloadBtn.onclick = () => {
-                    let dataURL = canvas.toDataURL('image/png');
-                    let link = document.createElement('a');
-                    link.download = '拼接后的图片.png';
-                    link.href = dataURL;
-                    link.click();
-                  };
-                }
-              };
-            });
-          }
-        </script>
-        </body>
-        </html>
+        if (images.indexOf(img) === images.length - 1) {
+          downloadBtn.style.display = 'block';
+          downloadBtn.onclick = () => {
+            let dataURL = canvas.toDataURL('image/png');
+            let link = document.createElement('a');
+            link.download = '拼接后的图片.png';
+            link.href = dataURL;
+            link.click();
+          };
+        }
+      };
+    });
+  }
+
+  // 监听文件输入框变化
+  document.getElementById('fileInput').addEventListener('change', uploadImages);
+</script>
+</body>
+</html>
